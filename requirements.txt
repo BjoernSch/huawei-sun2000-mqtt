@@ -4,6 +4,7 @@ paho-mqtt
 pymodbus
 pyserial
 pyserial-asyncio
+aioinflux
 python-dotenv
 pytz
 aiomqtt

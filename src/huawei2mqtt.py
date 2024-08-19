@@ -3,6 +3,7 @@ import logging
 import os
 import sys
 import time
+from datetime import datetime
 
 from huawei_solar import HuaweiSolarBridge
 from huawei_solar import register_names as rn
@@ -10,6 +11,7 @@ from dotenv import load_dotenv
 import paho.mqtt.publish as mqtt_publish
 import asyncio
 import aiomqtt
+from aioinflux import InfluxDBClient
 
 class Huawei2MQTT():
     # Poll fast register in shorter intervals for load regulation
@@ -82,8 +84,8 @@ class Huawei2MQTT():
         self.logger = logging.getLogger()
         self.mqtt_host = os.environ.get('HUAWEI_MODBUS_MQTT_BROKER')
         self.huawei_host = os.environ.get('HUAWEI_MODBUS_HOST')
-        self.huawei_port = int(os.environ.get('HUAWEI_MODBUS_PORT'))
-        self.primary_slave_id = int(os.environ.get('HUAWEI_MODBUS_DEVICE_ID_PRIMARY'))
+        self.huawei_port = int(os.environ.get('HUAWEI_MODBUS_PORT', 502))
+        self.primary_slave_id = int(os.environ.get('HUAWEI_MODBUS_DEVICE_ID_PRIMARY', 1))
         if os.environ.get('HUAWEI_MODBUS_DEVICE_ID_SECONDARY', None) != None:
             self.logger.info()
             self.secondary_slave_id = int(os.environ.get('HUAWEI_MODBUS_DEVICE_ID_SECONDARY'))
@@ -91,6 +93,15 @@ class Huawei2MQTT():
         else:
             self.secondary_slave_id = None
         self.topic = os.environ.get('HUAWEI_MODBUS_MQTT_TOPIC')
+
+        if os.getenv('INFLUXDB_HOST') != None:
+            self.influx_host = os.getenv('INFLUXDB_HOST')
+            self.influx_port = int(os.getenv('INFLUXDB_PORT', '8086')) 
+            self.influx_username = os.getenv('INFLUXDB_USER', 'meter_reader')
+            self.influx_password = os.getenv('INFLUXDB_PASSWORD')
+            self.influx_database = os.getenv('INFLUXDB_DATABASE', 'meter_reader')
+        else:
+            self.influx_host = None
 
     async def create(self):
         self.primary_bridge = await HuaweiSolarBridge.create(
@@ -108,6 +119,21 @@ class Huawei2MQTT():
             for (key, value) in data.items():
                 await client.publish(topic=key, payload=value)
         self.logger.debug(f"Published data to MQTT: {data}")
+
+    async def influx_publish_data(self, data, timestamp):
+        async with InfluxDBClient(
+                self.influx_host, self.influx_port,
+                self.influx_username, self.influx_password,
+                self.influx_database) as client:
+            await client.write({
+                'time': timestamp.isoformat(),
+                'measurement': self.topic,
+                'fields': {key.lstrip(self.topic + '/').replace('/','.'): value
+                           for (key, value) in data.items()}
+            })
+
+        
+
     
     def transform_result(self, data, topic):
         return_data = {}
@@ -138,7 +164,8 @@ class Huawei2MQTT():
         return record.value
 
     async def update(self, fast_update=False):
-        mqtt_data = {}
+        timestamp = datetime.now()
+        data = {}
 
         registers_primary = self.registers_fast_primary + self.registers_fast_common
         registers_secondary = self.registers_fast_secondary + self.registers_fast_common
@@ -151,17 +178,21 @@ class Huawei2MQTT():
             self.logger.debug("Getting multiple inverter data")
             self.logger.debug("Retrieving from primary inverter")
             data = await self.primary_bridge.batch_update(registers_primary)
-            mqtt_data.update(self.transform_result(data, self.topic + '/primary'))
+            data.update(self.transform_result(data, self.topic + '/primary'))
             self.logger.debug("Retrieving from secondary inverter")
             data = await self.secondary_bridge.batch_update(registers_secondary)
-            mqtt_data.update(self.transform_result(data, self.topic + '/secondary'))
+            data.update(self.transform_result(data, self.topic + '/secondary'))
         else:
             self.logger.debug("Getting single inverter data")
             data = await self.primary_bridge.batch_update(registers_primary)
-            mqtt_data.update(self.transform_result(data, self.topic))
+            data.update(self.transform_result(data, self.topic))
 
-        self.logger.debug("Sending MQTT")
-        await self.mqtt_publish_data(mqtt_data)
+        self.logger.debug("Sending data to MQTT")
+        await self.mqtt_publish_data(data)
+        
+        if self.influx_host:
+            self.logger.debug("Sending data to InfluxDB")
+            await self.influx_publish_data(data, timestamp)
     
     async def run(self):
         await huawei.create()
