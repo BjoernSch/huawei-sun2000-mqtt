@@ -115,10 +115,13 @@ class Huawei2MQTT():
         )
 
     async def mqtt_publish_data(self, data):
+        self.logger.debug(f"Published data to MQTT: {data}")
         async with aiomqtt.Client(self.mqtt_host) as client:
             for (key, value) in data.items():
+                self.logger.debug(f'K: {key}, V: {value}')
                 await client.publish(topic=key, payload=value)
-        self.logger.debug(f"Published data to MQTT: {data}")
+
+        
 
     async def influx_publish_data(self, data, timestamp):
         async with InfluxDBClient(
@@ -131,9 +134,6 @@ class Huawei2MQTT():
                 'fields': {key.lstrip(self.topic + '/').replace('/','.'): value
                            for (key, value) in data.items()}
             })
-
-        
-
     
     def transform_result(self, data, topic):
         return_data = {}
@@ -188,6 +188,8 @@ class Huawei2MQTT():
             data.update(self.transform_result(data, self.topic))
 
         self.logger.debug("Sending data to MQTT")
+        self.logger.debug(f"Data {data}")
+
         await self.mqtt_publish_data(data)
         
         if self.influx_host:
