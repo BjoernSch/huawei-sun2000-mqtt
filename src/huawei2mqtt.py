@@ -124,9 +124,9 @@ class Huawei2MQTT():
 
     async def influx_publish_data(self, data, timestamp):
         async with InfluxDBClient(
-                self.influx_host, self.influx_port,
-                self.influx_username, self.influx_password,
-                self.influx_database) as client:
+                host=self.influx_host, port=self.influx_port,
+                username=self.influx_username, password=self.influx_password,
+                database=self.influx_database) as client:
             await client.write({
                 'time': timestamp.isoformat(),
                 'measurement': self.topic,
