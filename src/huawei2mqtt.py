@@ -130,7 +130,7 @@ class Huawei2MQTT():
             await client.write({
                 'time': timestamp.isoformat(),
                 'measurement': self.topic,
-                'fields': {key.lstrip(self.topic + '/').replace('/','.'): value
+                'fields': {key.replace(self.topic + '/', '').replace('/','.'): value
                            for (key, value) in data.items()}
             })
 
