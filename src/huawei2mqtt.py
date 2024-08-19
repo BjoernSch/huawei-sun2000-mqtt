@@ -114,13 +114,12 @@ class Huawei2MQTT():
                 slave_id=self.secondary_slave_id
         )
 
+
     async def mqtt_publish_data(self, data):
-        self.logger.debug(f"Published data to MQTT: {data}")
         async with aiomqtt.Client(self.mqtt_host) as client:
             for (key, value) in data.items():
                 self.logger.debug(f'K: {key}, V: {value}')
                 await client.publish(topic=key, payload=value)
-
         
 
     async def influx_publish_data(self, data, timestamp):
@@ -134,7 +133,8 @@ class Huawei2MQTT():
                 'fields': {key.lstrip(self.topic + '/').replace('/','.'): value
                            for (key, value) in data.items()}
             })
-    
+
+
     def transform_result(self, data, topic):
         return_data = {}
         for (key, value) in data.items():
@@ -165,7 +165,7 @@ class Huawei2MQTT():
 
     async def update(self, fast_update=False):
         timestamp = datetime.now()
-        data = {}
+        update_data = {}
 
         registers_primary = self.registers_fast_primary + self.registers_fast_common
         registers_secondary = self.registers_fast_secondary + self.registers_fast_common
@@ -178,23 +178,21 @@ class Huawei2MQTT():
             self.logger.debug("Getting multiple inverter data")
             self.logger.debug("Retrieving from primary inverter")
             data = await self.primary_bridge.batch_update(registers_primary)
-            data.update(self.transform_result(data, self.topic + '/primary'))
+            update_data.update(self.transform_result(data, self.topic + '/primary'))
             self.logger.debug("Retrieving from secondary inverter")
             data = await self.secondary_bridge.batch_update(registers_secondary)
-            data.update(self.transform_result(data, self.topic + '/secondary'))
+            update_data.update(self.transform_result(data, self.topic + '/secondary'))
         else:
             self.logger.debug("Getting single inverter data")
             data = await self.primary_bridge.batch_update(registers_primary)
-            data.update(self.transform_result(data, self.topic))
+            update_data.update(self.transform_result(data, self.topic))
 
         self.logger.debug("Sending data to MQTT")
-        self.logger.debug(f"Data {data}")
-
-        await self.mqtt_publish_data(data)
+        await self.mqtt_publish_data(update_data)
         
         if self.influx_host:
             self.logger.debug("Sending data to InfluxDB")
-            await self.influx_publish_data(data, timestamp)
+            await self.influx_publish_data(update_data, timestamp)
     
     async def run(self):
         await huawei.create()
