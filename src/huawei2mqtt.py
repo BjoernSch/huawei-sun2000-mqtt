@@ -53,14 +53,14 @@ class Huawei2MQTT():
         rn.STORAGE_RATED_CAPACITY,
         rn.STORAGE_BUS_VOLTAGE,
         rn.STORAGE_BUS_CURRENT,
-        rn.STORAGE_UNIT_1_BATTERY_PACK_1_STATE_OF_CAPACITY,
-        rn.STORAGE_UNIT_1_BATTERY_PACK_1_CHARGE_DISCHARGE_POWER,
-        rn.STORAGE_UNIT_1_BATTERY_PACK_1_VOLTAGE,
-        rn.STORAGE_UNIT_1_BATTERY_PACK_1_CURRENT,
-        rn.STORAGE_UNIT_1_BATTERY_PACK_2_STATE_OF_CAPACITY,
-        rn.STORAGE_UNIT_1_BATTERY_PACK_2_CHARGE_DISCHARGE_POWER,
-        rn.STORAGE_UNIT_1_BATTERY_PACK_2_VOLTAGE,
-        rn.STORAGE_UNIT_1_BATTERY_PACK_2_CURRENT
+        # rn.STORAGE_UNIT_1_BATTERY_PACK_1_STATE_OF_CAPACITY,
+        # rn.STORAGE_UNIT_1_BATTERY_PACK_1_CHARGE_DISCHARGE_POWER,
+        # rn.STORAGE_UNIT_1_BATTERY_PACK_1_VOLTAGE,
+        # rn.STORAGE_UNIT_1_BATTERY_PACK_1_CURRENT,
+        # rn.STORAGE_UNIT_1_BATTERY_PACK_2_STATE_OF_CAPACITY,
+        # rn.STORAGE_UNIT_1_BATTERY_PACK_2_CHARGE_DISCHARGE_POWER,
+        # rn.STORAGE_UNIT_1_BATTERY_PACK_2_VOLTAGE,
+        # rn.STORAGE_UNIT_1_BATTERY_PACK_2_CURRENT
     ]
     registers_secondary = []
     registers_common = [
@@ -86,10 +86,13 @@ class Huawei2MQTT():
         self.huawei_host = os.environ.get('HUAWEI_MODBUS_HOST')
         self.huawei_port = int(os.environ.get('HUAWEI_MODBUS_PORT', 502))
         self.primary_slave_id = int(os.environ.get('HUAWEI_MODBUS_DEVICE_ID_PRIMARY', 1))
+        self.logger.info(f'Secondary Inverter ID: {self.primary_slave_id}')
         if os.environ.get('HUAWEI_MODBUS_DEVICE_ID_SECONDARY', None) != None:
-            self.logger.info()
             self.secondary_slave_id = int(os.environ.get('HUAWEI_MODBUS_DEVICE_ID_SECONDARY'))
-            self.logger.info()
+            self.logger.info(f'Secondary Inverter ID: {self.secondary_slave_id}')
+            # keep primary names if requested
+            self.secondary_later_addition = os.environ.get('HUAWEI_SECONDARY_LATER_ADDITION', 'False').lower() in ('true', '1', 't')
+            self.logger.info(f'Secondary later addition Mode: {self.secondary_later_addition}')
         else:
             self.secondary_slave_id = None
         self.topic = os.environ.get('HUAWEI_MODBUS_MQTT_TOPIC')
@@ -151,6 +154,23 @@ class Huawei2MQTT():
 
         return return_data
 
+
+    def calculate_cascade_values(self, data_primary, data_secondary):
+      return_data = {}
+      for key in (
+            "input_power",
+            "active_power",
+            "accumulated_yield_energy",
+            "reactive_power",
+            "total_dc_input_power"):
+        try:
+            return_data[key] = data_primary[key] + data_secondary[key]
+        except KeyError:
+            pass
+
+      return return_data
+          
+
     def calculate_power(self, voltage, current):
         if voltage is None or current is None:
             return None
@@ -176,12 +196,17 @@ class Huawei2MQTT():
 
         if self.secondary_slave_id != None:
             self.logger.debug("Getting multiple inverter data")
+
             self.logger.debug("Retrieving from primary inverter")
-            data = await self.primary_bridge.batch_update(registers_primary)
-            update_data.update(self.transform_result(data, self.topic + '/primary'))
+            data_primary = await self.primary_bridge.batch_update(registers_primary)
+            update_data.update(self.transform_result(data_primary, self.topic + '' if self.secondary_later_addition else '/primary'))
+
             self.logger.debug("Retrieving from secondary inverter")
-            data = await self.secondary_bridge.batch_update(registers_secondary)
-            update_data.update(self.transform_result(data, self.topic + '/secondary'))
+            data_secondary = await self.secondary_bridge.batch_update(registers_secondary)
+            update_data.update(self.transform_result(data_secondary, self.topic + '/secondary'))
+
+            data = self.calculate_cascade_values(data_primary, data_secondary)
+            update_data.update(self.transform_result(data, self.topic + '/cascade'))
         else:
             self.logger.debug("Getting single inverter data")
             data = await self.primary_bridge.batch_update(registers_primary)
