@@ -107,13 +107,13 @@ class Huawei2MQTT():
             self.influx_host = None
 
     async def create(self):
-        self.primary_bridge = await HuaweiSolarBridge.create(
+        self.primary_bridge = await HuaweiSolarBridge.create_tcp_bridge(
             host=self.huawei_host, port=self.huawei_port,
             slave_id=self.primary_slave_id,
         )
         if self.secondary_slave_id != None:
-            self.secondary_bridge = await HuaweiSolarBridge.create_extra_slave(
-                self.primary_bridge,
+            self.secondary_bridge = await HuaweiSolarBridge.create_sub_bridge(
+                primary_bridge=self.primary_bridge,
                 slave_id=self.secondary_slave_id
         )
 
