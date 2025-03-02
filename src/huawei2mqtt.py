@@ -163,11 +163,11 @@ class Huawei2MQTT():
             "accumulated_yield_energy",
             "reactive_power",
             "total_dc_input_power"):
-        try:
-            return_data[key] = data_primary[key] + data_secondary[key]
-        except KeyError:
-            pass
-
+        value_primary = self.get_value(data_primary.get(key))
+        value_secondary = self.get_value(data_secondary.get(key))
+        if value_primary is not None and value_secondary is not None:
+          return_data[key] = value_primary + value_secondary
+          
       return return_data
           
 
