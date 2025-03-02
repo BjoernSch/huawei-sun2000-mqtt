@@ -108,7 +108,7 @@ class Huawei2MQTT():
 
     async def create(self):
         self.primary_bridge = await HuaweiSolarBridge.create(
-            self.huawei_host, self.huawei_port,
+            host=self.huawei_host, port=self.huawei_port,
             slave_id=self.primary_slave_id,
         )
         if self.secondary_slave_id != None:
