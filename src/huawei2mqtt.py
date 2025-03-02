@@ -166,7 +166,7 @@ class Huawei2MQTT():
         value_primary = self.get_value(data_primary.get(key))
         value_secondary = self.get_value(data_secondary.get(key))
         if value_primary is not None and value_secondary is not None:
-          return_data[key] = Result(value=value_primary + value_secondary)
+          return_data[key] = Result(value=value_primary + value_secondary, unit=None)
           
       return return_data
           
