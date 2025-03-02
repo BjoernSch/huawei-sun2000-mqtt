@@ -5,7 +5,7 @@ import sys
 import time
 from datetime import datetime
 
-from huawei_solar import HuaweiSolarBridge
+from huawei_solar import HuaweiSolarBridge, create_tcp_bridge, create_sub_bridge
 from huawei_solar import register_names as rn
 from dotenv import load_dotenv
 import paho.mqtt.publish as mqtt_publish
@@ -107,12 +107,12 @@ class Huawei2MQTT():
             self.influx_host = None
 
     async def create(self):
-        self.primary_bridge = await HuaweiSolarBridge.create_tcp_bridge(
+        self.primary_bridge = await create_tcp_bridge(
             host=self.huawei_host, port=self.huawei_port,
             slave_id=self.primary_slave_id,
         )
         if self.secondary_slave_id != None:
-            self.secondary_bridge = await HuaweiSolarBridge.create_sub_bridge(
+            self.secondary_bridge = await create_sub_bridge(
                 primary_bridge=self.primary_bridge,
                 slave_id=self.secondary_slave_id
         )
