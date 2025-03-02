@@ -86,7 +86,7 @@ class Huawei2MQTT():
         self.huawei_host = os.environ.get('HUAWEI_MODBUS_HOST')
         self.huawei_port = int(os.environ.get('HUAWEI_MODBUS_PORT', 502))
         self.primary_slave_id = int(os.environ.get('HUAWEI_MODBUS_DEVICE_ID_PRIMARY', 1))
-        self.logger.info(f'Secondary Inverter ID: {self.primary_slave_id}')
+        self.logger.info(f'Primary Inverter ID: {self.primary_slave_id}')
         if os.environ.get('HUAWEI_MODBUS_DEVICE_ID_SECONDARY', None) != None:
             self.secondary_slave_id = int(os.environ.get('HUAWEI_MODBUS_DEVICE_ID_SECONDARY'))
             self.logger.info(f'Secondary Inverter ID: {self.secondary_slave_id}')

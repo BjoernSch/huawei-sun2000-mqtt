@@ -9,4 +9,3 @@ aioinflux
 python-dotenv
 pytz
 aiomqtt
-aioinflux
